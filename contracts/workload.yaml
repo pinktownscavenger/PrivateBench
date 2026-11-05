@@ -1,0 +1,94 @@
+# Pilot workload contract: customer/order/ticket refund resolution.
+# PROVISIONAL SYNTHETIC FIXTURE. Not a claim about any real workload.
+# See docs/6725 Pilot Work Breakdown.md (M0).
+
+contract_version: "0.1.0-draft"
+workload_id: support_refunds_pilot
+synthetic: true
+review_status: proposed     # proposed | team_approved
+description: >
+  A support agent receives a customer ticket asking for a refund and resolves
+  it using the support tools, following the refund rules in rules.yaml.
+
+clock:
+  # Each task snapshot fixes "now"; tools never read the wall clock.
+  source: snapshot
+  timezone: UTC
+
+entities:
+  customer:
+    key: customer_id
+    fields: {customer_id: str, name: str, email: str}
+  order:
+    key: order_id
+    fields:
+      order_id: str
+      customer_id: str
+      item: str
+      total_cents: int
+      status: "placed | shipped | delivered | cancelled"
+      delivered_at: "datetime | null"
+  refund:
+    key: refund_id
+    fields: {refund_id: str, order_id: str, amount_cents: int, reason: str, created_at: datetime}
+  ticket:
+    key: ticket_id
+    fields:
+      ticket_id: str
+      customer_id: str
+      subject: str
+      body: str
+      status: "open | resolved | denied"
+      resolution_note: "str | null"
+
+tools:
+  get_ticket:
+    access: read
+    params: {ticket_id: str}
+    returns: ticket
+    errors: [not_found]
+  find_customer:
+    access: read
+    params: {email: str}
+    returns: customer
+    errors: [not_found]
+  list_orders:
+    access: read
+    params: {customer_id: str}
+    returns: "list[order]"
+    errors: [not_found]
+  get_order:
+    access: read
+    params: {order_id: str}
+    returns: "order, including its refunds"
+    errors: [not_found]
+  issue_refund:
+    access: write
+    params: {order_id: str, reason: str}
+    returns: refund
+    effects: ["inserts one refund row for the full order total"]
+    # Integrity checks only. The tool does NOT enforce R1/R2: applying the
+    # refund policy is the agent's job, so the tool will happily refund an
+    # ineligible or already-refunded order. (Open question Q3.)
+    preconditions: [order_exists]
+    errors: [not_found]
+  update_ticket:
+    access: write
+    params: {ticket_id: str, status: "resolved | denied", note: str}
+    returns: ticket
+    effects: ["sets ticket status and resolution_note"]
+    errors: [not_found, invalid_status]
+  ask_user:
+    access: interaction
+    params: {question: str}
+    returns: str
+    effects: []
+    # Answered by the scripted user (M8) from per-task disclosure rules.
+
+permissions:
+  solver: [get_ticket, find_customer, list_orders, get_order, issue_refund, update_ticket, ask_user]
+
+workflow_frequencies:
+  # Unknown for a synthetic fixture. Pilot reports per-family and an
+  # explicitly labelled equal-family aggregate; no weighted claims.
+  status: unknown

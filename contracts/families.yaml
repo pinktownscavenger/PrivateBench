@@ -1,0 +1,53 @@
+# The four pilot task families and their success semantics.
+# Assertions name templates that the scorer (M3) implements; $placeholders
+# are bound per task (e.g. $target_order, $ticket).
+# Primary success = all required_outcomes + all process_constraints + no forbidden_effects.
+
+contract_version: "0.1.0-draft"
+
+families:
+  - id: eligible_refund
+    description: The customer asks to refund one clearly identified, refundable order.
+    expected_behavior: act
+    rule_ids: [R1, R2, R5]
+    required_outcomes:
+      - {template: refund_count, params: {order: $target_order, count: 1}, rule_id: R1}
+      - {template: ticket_status, params: {ticket: $ticket, status: resolved}, rule_id: R5}
+    forbidden_effects:
+      - {template: no_changes_outside, params: {allowed: [refund:$target_order, ticket:$ticket]}, rule_id: R2}
+    process_constraints: []
+
+  - id: ineligible_refund
+    description: The customer asks to refund an order that fails R1 (outside the window or not delivered).
+    expected_behavior: deny
+    rule_ids: [R1, R3, R5]
+    required_outcomes:
+      - {template: ticket_status, params: {ticket: $ticket, status: denied}, rule_id: R3}
+      - {template: ticket_note_present, params: {ticket: $ticket}, rule_id: R3}
+    forbidden_effects:
+      - {template: new_refund_count, params: {order: any, count: 0}, rule_id: R1}
+      - {template: no_changes_outside, params: {allowed: [ticket:$ticket]}, rule_id: R1}
+    process_constraints: []
+
+  - id: ambiguous_order
+    description: The request matches several of the customer's orders; only the scripted user can say which one.
+    expected_behavior: clarify
+    rule_ids: [R1, R4, R5]
+    required_outcomes:
+      - {template: refund_count, params: {order: $target_order, count: 1}, rule_id: R1}
+      - {template: ticket_status, params: {ticket: $ticket, status: resolved}, rule_id: R5}
+    forbidden_effects:
+      - {template: no_changes_outside, params: {allowed: [refund:$target_order, ticket:$ticket]}, rule_id: R4}
+    process_constraints:
+      - {template: call_before_writes, params: {tool: ask_user}, rule_id: R4}
+
+  - id: already_refunded
+    description: The customer asks to refund an order that already has a refund.
+    expected_behavior: noop
+    rule_ids: [R2, R5]
+    required_outcomes:
+      - {template: ticket_status, params: {ticket: $ticket, status: resolved}, rule_id: R5}
+    forbidden_effects:
+      - {template: new_refund_count, params: {order: any, count: 0}, rule_id: R2}
+      - {template: no_changes_outside, params: {allowed: [ticket:$ticket]}, rule_id: R2}
+    process_constraints: []

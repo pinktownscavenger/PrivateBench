@@ -1,0 +1,49 @@
+# Refund rules for the pilot fixture.
+# Every rule is an ASSUMED, SYNTHETIC policy drafted for the pilot. None comes
+# from a real business. The team approves them at kickoff (owner review
+# stand-in); real workload validation is out of scope for the pilot.
+
+contract_version: "0.1.0-draft"
+
+rules:
+  - id: R1
+    text: An order is refundable only if its status is delivered and it was delivered at most 30 days before now.
+    provenance: {kind: assumed, source: "pilot draft 2026-11-05", synthetic: true}
+    confidence: low
+    review_status: proposed
+    open_questions: [Q1]
+
+  - id: R2
+    text: An order may be refunded at most once.
+    provenance: {kind: assumed, source: "pilot draft 2026-11-05", synthetic: true}
+    confidence: medium
+    review_status: proposed
+
+  - id: R3
+    text: An ineligible refund request must be denied on the ticket with a note stating the reason.
+    provenance: {kind: assumed, source: "pilot draft 2026-11-05", synthetic: true}
+    confidence: medium
+    review_status: proposed
+
+  - id: R4
+    text: If the request could refer to more than one of the customer's orders, the agent must ask the customer which order before making any write.
+    provenance: {kind: assumed, source: "pilot draft 2026-11-05", synthetic: true}
+    confidence: medium
+    review_status: proposed
+    open_questions: [Q2]
+
+  - id: R5
+    text: Every request ends with its ticket set to resolved or denied.
+    provenance: {kind: assumed, source: "pilot draft 2026-11-05", synthetic: true}
+    confidence: medium
+    review_status: proposed
+
+open_questions:
+  - id: Q1
+    question: Is 30 days the right window, and is it measured from delivery or from order date?
+  - id: Q2
+    question: What counts as "could refer to more than one order" (same item, same week, no order ID given)?
+  - id: Q3
+    question: Should issue_refund reject already-refunded orders itself, or leave R2 entirely to the agent?
+  - id: Q4
+    question: Do partial refunds exist? The draft assumes full refunds only.

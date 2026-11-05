@@ -20,7 +20,13 @@ The pilot is the smallest system that produces one honest number end to end: **h
 | Inspect runner, **one model, single agent**, 3 repeats | Teams, extra-inference baselines, routing |
 | Local runs (Docker/SQLite) | AWS workers |
 
-**Assumption to confirm at kickoff:** the README says "coding benchmarks", but the plan's pilot is an API business workflow. This breakdown follows the plan. If the team picks coding/file tasks instead, modules M2 (environment) and M5 (runner, Harbor instead of Inspect) change; the rest holds.
+**Decisions (5 Nov 2026):**
+
+- **Workload:** the pilot uses the API business workflow. Coding/file tasks are a possible later branch, which would mean Harbor instead of Inspect.
+- **Shared formats:** Pydantic v2.
+- **Tools:** in-process Python functions behind a single gateway class that checks permissions and writes the event log. The gateway is the one seam, so it can be swapped for an HTTP client later without touching tools or the scorer.
+- **Expected-behavior types:** act, deny, clarify and no-op are all in the formats from day one.
+- **Draft rules:** R1–R5 in `contracts/rules.yaml` are assumed, synthetic proposals awaiting team approval at kickoff, along with open questions Q1–Q4.
 
 **Pilot outputs:**
 - About 20 directly generated candidates per family (~80 total)
