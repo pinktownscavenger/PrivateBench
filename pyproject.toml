@@ -23,3 +23,6 @@ packages = ["privatebench"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Don't rely on the editable-install .pth: Python skips .pth files that macOS
+# has flagged hidden, which silently breaks `import privatebench`.
+pythonpath = ["."]
