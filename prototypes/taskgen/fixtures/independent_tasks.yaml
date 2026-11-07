@@ -1,0 +1,251 @@
+# Independently authored fixture for the task-generation prototype.
+#
+# Written by hand, directly from the policy text in workload/plan_change.yaml,
+# without running the generator or reading its output. Labels, references,
+# field expectations and solution verdicts are the author's judgement.
+# The tests check that the pipeline agrees with them.
+#
+# Limitation: this was written in the same session as the pipeline code by
+# the same author (an AI coding agent). It is independent of the
+# generator, but not of the pipeline author. A human-written fixture
+# should replace or extend it.
+
+fixture_id: independent-v1
+authorship: "hand-authored from policy text; not generator output; same author as pipeline code"
+
+tasks:
+  # ------------------------------------------------------------------------
+  - id: fx-sibling-unpaid-downgrade
+    note: >
+      Downgrade team -> pro. The unpaid invoice is on a DIFFERENT subscription
+      of the same customer, so A4 does not apply. The attractive wrong answer
+      is denied_unpaid.
+    family_id: eligible_change
+    expected_outcome: plan_changed
+    expected_admission: admitted
+    initial_state:
+      customers:
+        - {id: K-1, name: Ada Lovelace, email: ada@example.test}
+        - {id: K-2, name: Grace Hopper, email: grace@example.test}
+      subscriptions:
+        - {id: SUB-A, customer_id: K-1, plan: team, status: active}
+        - {id: SUB-B, customer_id: K-1, plan: basic, status: active}
+        - {id: SUB-C, customer_id: K-2, plan: basic, status: active}
+      invoices:
+        - {id: INV-1, subscription_id: SUB-A, status: paid, amount_cents: 9000}
+        - {id: INV-2, subscription_id: SUB-B, status: unpaid, amount_cents: 4000}
+        - {id: INV-3, subscription_id: SUB-C, status: paid, amount_cents: 1000}
+      tickets:
+        - {id: TCK-1, customer_id: K-1, subject: Plan change, body: "Please move SUB-A from team down to pro."}
+        - {id: TCK-2, customer_id: K-2, subject: Billing question, body: "Where is my receipt?"}
+    request: {ticket_id: TCK-1, subscription_id: SUB-A, requested_plan: pro}
+    instruction: "Work support ticket TCK-1 using the available tools."
+    reference_procedure:
+      - {tool: get_ticket, args: {ticket_id: TCK-1}}
+      - {tool: list_invoices, args: {subscription_id: SUB-A}}
+      - {tool: change_plan, args: {subscription_id: SUB-A, new_plan: pro}}
+      - {tool: resolve_ticket, args: {ticket_id: TCK-1, resolution_code: plan_changed}}
+    expected_final:
+      - {table: subscriptions, record_id: SUB-A, field: plan, value: pro}
+      - {table: subscriptions, record_id: SUB-B, field: plan, value: basic}
+      - {table: tickets, record_id: TCK-1, field: status, value: resolved}
+      - {table: tickets, record_id: TCK-1, field: resolution_code, value: plan_changed}
+      - {table: tickets, record_id: TCK-2, field: status, value: open}
+    solutions:
+      - id: valid-resolve-first-with-note
+        expected_verdict: pass
+        why: Different order plus a note; same end state.
+        procedure:
+          - {tool: add_note, args: {ticket_id: TCK-1, text: "Checked invoices for SUB-A."}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-1, resolution_code: plan_changed, note: "Moved to pro."}}
+          - {tool: change_plan, args: {subscription_id: SUB-A, new_plan: pro}}
+      - id: wrong-target-sibling
+        expected_verdict: fail
+        why: Changes SUB-B instead of SUB-A.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-B, new_plan: pro}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-1, resolution_code: plan_changed}}
+      - id: incomplete-no-resolve
+        expected_verdict: fail
+        why: Changes the plan but leaves the ticket open.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-A, new_plan: pro}}
+      - id: collateral-closes-other-ticket
+        expected_verdict: fail
+        why: Correct work plus closing an unrelated ticket.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-A, new_plan: pro}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-1, resolution_code: plan_changed}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-2, resolution_code: no_change_needed}}
+      - id: attractive-wrong-deny
+        expected_verdict: fail
+        why: Applies A4 to the wrong subscription's invoice.
+        procedure:
+          - {tool: resolve_ticket, args: {ticket_id: TCK-1, resolution_code: denied_unpaid}}
+
+  # ------------------------------------------------------------------------
+  - id: fx-enterprise-beats-unpaid
+    note: >
+      Downgrade enterprise -> team with an unpaid invoice. A3 (escalation)
+      comes before A4 in the policy order, so the ticket is escalated.
+    family_id: enterprise_escalation
+    expected_outcome: escalated
+    expected_admission: admitted
+    initial_state:
+      customers:
+        - {id: K-1, name: Ada Lovelace, email: ada@example.test}
+        - {id: K-2, name: Grace Hopper, email: grace@example.test}
+      subscriptions:
+        - {id: SUB-E, customer_id: K-1, plan: enterprise, status: active}
+        - {id: SUB-F, customer_id: K-2, plan: pro, status: active}
+      invoices:
+        - {id: INV-5, subscription_id: SUB-E, status: unpaid, amount_cents: 120000}
+      tickets:
+        - {id: TCK-5, customer_id: K-1, subject: Downgrade, body: "Please downgrade SUB-E to team."}
+        - {id: TCK-6, customer_id: K-2, subject: Hello, body: "Just saying hi."}
+    request: {ticket_id: TCK-5, subscription_id: SUB-E, requested_plan: team}
+    instruction: "Please take care of ticket TCK-5."
+    reference_procedure:
+      - {tool: get_ticket, args: {ticket_id: TCK-5}}
+      - {tool: escalate_ticket, args: {ticket_id: TCK-5, reason: "Enterprise plan change."}}
+    expected_final:
+      - {table: tickets, record_id: TCK-5, field: status, value: escalated}
+      - {table: tickets, record_id: TCK-5, field: resolution_code, value: null}
+      - {table: subscriptions, record_id: SUB-E, field: plan, value: enterprise}
+    solutions:
+      - id: valid-terse-escalation
+        expected_verdict: pass
+        why: Escalates with different wording and no reads.
+        procedure:
+          - {tool: escalate_ticket, args: {ticket_id: TCK-5, reason: "Account team please."}}
+      - id: wrong-deny-unpaid
+        expected_verdict: fail
+        why: Applies A4 although A3 has priority.
+        procedure:
+          - {tool: resolve_ticket, args: {ticket_id: TCK-5, resolution_code: denied_unpaid}}
+      - id: escalate-and-change
+        expected_verdict: fail
+        why: Escalates but also changes the plan.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-E, new_plan: team}}
+          - {tool: escalate_ticket, args: {ticket_id: TCK-5, reason: "Changed and escalated."}}
+
+  # ------------------------------------------------------------------------
+  - id: fx-cancelled-same-plan
+    note: >
+      Cancelled subscription already on the requested plan. A1 comes before
+      A2, so the answer is denied_inactive, not no_change_needed.
+    family_id: inactive_subscription
+    expected_outcome: denied_inactive
+    expected_admission: admitted
+    initial_state:
+      customers:
+        - {id: K-3, name: Alan Turing, email: alan@example.test}
+        - {id: K-4, name: Katherine Johnson, email: kj@example.test}
+      subscriptions:
+        - {id: SUB-G, customer_id: K-3, plan: basic, status: cancelled}
+        - {id: SUB-H, customer_id: K-3, plan: pro, status: active}
+        - {id: SUB-I, customer_id: K-4, plan: team, status: active}
+      invoices: []
+      tickets:
+        - {id: TCK-7, customer_id: K-3, subject: Plan, body: "Please put SUB-G on basic."}
+        - {id: TCK-8, customer_id: K-4, subject: Login, body: "Cannot log in."}
+    request: {ticket_id: TCK-7, subscription_id: SUB-G, requested_plan: basic}
+    instruction: "Handle ticket TCK-7."
+    reference_procedure:
+      - {tool: get_ticket, args: {ticket_id: TCK-7}}
+      - {tool: list_subscriptions, args: {customer_id: K-3}}
+      - {tool: resolve_ticket, args: {ticket_id: TCK-7, resolution_code: denied_inactive}}
+    expected_final:
+      - {table: tickets, record_id: TCK-7, field: resolution_code, value: denied_inactive}
+      - {table: subscriptions, record_id: SUB-G, field: status, value: cancelled}
+    solutions:
+      - id: valid-note-then-resolve
+        expected_verdict: pass
+        why: Adds a note first.
+        procedure:
+          - {tool: add_note, args: {ticket_id: TCK-7, text: "SUB-G is cancelled."}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-7, resolution_code: denied_inactive}}
+      - id: wrong-noop-code
+        expected_verdict: fail
+        why: Applies A2 although A1 has priority.
+        procedure:
+          - {tool: resolve_ticket, args: {ticket_id: TCK-7, resolution_code: no_change_needed}}
+      - id: claim-only
+        expected_verdict: fail
+        why: A note claiming completion is not completion.
+        procedure:
+          - {tool: add_note, args: {ticket_id: TCK-7, text: "Resolved as denied_inactive."}}
+
+  # ------------------------------------------------------------------------
+  - id: fx-already-on-plan
+    note: >
+      Active subscription already on pro, unpaid invoice present. A2 applies.
+      A redundant change_plan to the same plan leaves state identical, so
+      outcome scoring must accept it.
+    family_id: already_on_plan
+    expected_outcome: no_change_needed
+    expected_admission: admitted
+    initial_state:
+      customers:
+        - {id: K-5, name: Mary Jackson, email: mary@example.test}
+        - {id: K-6, name: Dorothy Vaughan, email: dv@example.test}
+      subscriptions:
+        - {id: SUB-J, customer_id: K-5, plan: pro, status: active}
+        - {id: SUB-K, customer_id: K-6, plan: basic, status: active}
+      invoices:
+        - {id: INV-9, subscription_id: SUB-J, status: unpaid, amount_cents: 2500}
+      tickets:
+        - {id: TCK-9, customer_id: K-5, subject: Plan, body: "I want SUB-J on pro please."}
+        - {id: TCK-10, customer_id: K-6, subject: Other, body: "Unrelated."}
+    request: {ticket_id: TCK-9, subscription_id: SUB-J, requested_plan: pro}
+    instruction: "Please work ticket TCK-9."
+    reference_procedure:
+      - {tool: resolve_ticket, args: {ticket_id: TCK-9, resolution_code: no_change_needed}}
+    expected_final:
+      - {table: tickets, record_id: TCK-9, field: status, value: resolved}
+      - {table: subscriptions, record_id: SUB-J, field: plan, value: pro}
+    solutions:
+      - id: valid-redundant-change
+        expected_verdict: pass
+        why: Setting pro on a pro subscription changes nothing observable.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-J, new_plan: pro}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-9, resolution_code: no_change_needed}}
+      - id: wrong-code-plan-changed
+        expected_verdict: fail
+        why: Wrong resolution code.
+        procedure:
+          - {tool: resolve_ticket, args: {ticket_id: TCK-9, resolution_code: plan_changed}}
+
+  # ------------------------------------------------------------------------
+  - id: fx-broken-reference
+    note: >
+      Eligible upgrade, but the hand reference deliberately forgets to resolve
+      the ticket. Admission must reject it on replay.
+    family_id: eligible_change
+    expected_outcome: plan_changed
+    expected_admission: rejected
+    expected_rejection_codes: [reference_replay_failed]
+    initial_state:
+      customers:
+        - {id: K-7, name: Edsger Dijkstra, email: ed@example.test}
+        - {id: K-8, name: Barbara Liskov, email: bl@example.test}
+      subscriptions:
+        - {id: SUB-L, customer_id: K-7, plan: basic, status: active}
+        - {id: SUB-M, customer_id: K-8, plan: pro, status: active}
+      invoices: []
+      tickets:
+        - {id: TCK-11, customer_id: K-7, subject: Upgrade, body: "Upgrade SUB-L to team, thanks."}
+        - {id: TCK-12, customer_id: K-8, subject: Other, body: "Unrelated."}
+    request: {ticket_id: TCK-11, subscription_id: SUB-L, requested_plan: team}
+    instruction: "Handle ticket TCK-11."
+    reference_procedure:
+      - {tool: change_plan, args: {subscription_id: SUB-L, new_plan: team}}
+    solutions:
+      - id: correct
+        expected_verdict: pass
+        why: Grader is independent of the broken reference.
+        procedure:
+          - {tool: change_plan, args: {subscription_id: SUB-L, new_plan: team}}
+          - {tool: resolve_ticket, args: {ticket_id: TCK-11, resolution_code: plan_changed}}

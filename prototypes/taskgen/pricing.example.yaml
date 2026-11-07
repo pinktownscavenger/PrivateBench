@@ -1,0 +1,15 @@
+# Pricing for live generation. Copy to a private file (e.g. pricing.local.yaml,
+# which is git-ignored) and fill in rates from the provider's current price list.
+# No rates are built into the code. This example deliberately fails validation
+# until every REPLACE_ value is replaced.
+#
+# Token categories are provider-specific. The transport names the categories it
+# needs (e.g. input, output, reasoning, cache_read) and refuses to start if any
+# are missing.
+currency: USD
+models:
+  - model: "REPLACE_WITH_EXACT_MODEL_ID"        # must equal --model / TASKGEN_MODEL exactly
+    usd_per_million_tokens:
+      input: REPLACE_WITH_RATE
+      output: REPLACE_WITH_RATE
+    source: "REPLACE: price-list URL and date checked"

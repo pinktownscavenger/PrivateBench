@@ -1,0 +1,118 @@
+# Approved workload specification for the task-generation prototype.
+#
+# EVERYTHING IN THIS FILE IS A SYNTHETIC PROTOTYPE ASSUMPTION.
+# It is not a real business policy, it is not derived from any customer, and it
+# is unrelated to the pilot's R1-R5 rules in contracts/. It exists so the
+# generation -> replay -> grading -> admission pipeline has something concrete
+# and checkable to run against. Edit, reorder or disable policies freely; the
+# oracle, grader and fixture tests read them from here.
+
+spec_id: plan-change-support
+version: 1
+status: approved
+approval:
+  approved_by: "prototype author (synthetic approval for the offline demo; NOT a domain-owner review)"
+  approved_on: "2026-11-06"
+  note: "Approval only gates generation. Workload relevance still needs a real owner."
+
+description: >
+  A support agent works a customer ticket that asks to change the plan on one
+  subscription. The agent reads the ticket and account records, applies the
+  support policies, and leaves the subscription and ticket in the correct state.
+
+disclaimer: >
+  Policies A1-A4 are prototype assumptions written to exercise the pipeline.
+  They are not real business rules.
+
+plans:
+  - {name: basic, rank: 1}
+  - {name: pro, rank: 2}
+  - {name: team, rank: 3}
+  - {name: enterprise, rank: 4}
+
+resolution_codes: [plan_changed, no_change_needed, denied_unpaid, denied_inactive]
+
+# Evaluated top to bottom; the first enabled policy that applies decides the
+# outcome. If none applies, `default_outcome` (plan_changed) applies.
+policies:
+  - id: A1
+    kind: inactive_blocks_change
+    enabled: true
+    provenance: prototype_assumption
+    statement: >
+      A cancelled subscription cannot change plan. Do not change it; resolve the
+      ticket with code denied_inactive.
+  - id: A2
+    kind: already_on_plan_noop
+    enabled: true
+    provenance: prototype_assumption
+    statement: >
+      If the subscription is already on the requested plan, make no change and
+      resolve the ticket with code no_change_needed.
+  - id: A3
+    kind: escalate_plans
+    enabled: true
+    provenance: prototype_assumption
+    params: {plans: [enterprise]}
+    statement: >
+      Any change to or from these plans must be escalated to the account team
+      with escalate_ticket: {plans}. Do not change the plan or resolve the ticket.
+  - id: A4
+    kind: unpaid_blocks_downgrade
+    enabled: true
+    provenance: prototype_assumption
+    statement: >
+      A downgrade (to a lower-ranked plan) is refused while that same
+      subscription has an unpaid invoice. Do not change it; resolve the ticket
+      with code denied_unpaid. Upgrades are not affected.
+
+default_outcome:
+  statement: >
+    Otherwise change the subscription to the requested plan and resolve the
+    ticket with code plan_changed.
+
+# One family per policy branch. target_count = generation slots per family.
+families:
+  - id: eligible_change
+    outcome: plan_changed
+    target_count: 2
+    description: "A permitted upgrade or downgrade that should be carried out."
+  - id: inactive_subscription
+    outcome: denied_inactive
+    target_count: 2
+    description: "The request targets a cancelled subscription."
+  - id: already_on_plan
+    outcome: no_change_needed
+    target_count: 2
+    description: "The subscription is already on the requested plan."
+  - id: enterprise_escalation
+    outcome: escalated
+    target_count: 2
+    description: "The change involves an escalation-only plan."
+  - id: unpaid_downgrade
+    outcome: denied_unpaid
+    target_count: 2
+    description: "A downgrade requested while the subscription has an unpaid invoice."
+
+# The solver instruction may not contain these (case-insensitive). They would
+# reveal which branch applies.
+instruction_forbidden_terms:
+  - plan_changed
+  - no_change_needed
+  - denied_unpaid
+  - denied_inactive
+  - escalat
+  - deny
+  - denied
+  - refuse
+  - approve
+  - eligible
+  - unpaid
+  - cancelled
+  - expected result
+
+generation:
+  max_repairs: 1
+  min_distractor_subscriptions: 1
+  min_distractor_tickets: 1
+  instruction_max_chars: 600
